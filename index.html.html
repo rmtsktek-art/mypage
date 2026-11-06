@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>로켓 속 빛 신호 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 실험 장면(좌, 넓게) + 계기판(우). 휴대폰에서는 위아래로 쌓임. 장면은 교과서 그림처럼 가로축 = 시간. */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#152033; --muted:#5a6578; --line:#d3d9e3;
+  --accent:#3b4fd8; --red:#d8433a; --blue:#2c6ad6; --ok:#1f8a5b; --chip:#e4e8f3;
+  --display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;
+  --body:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1420; --panel:#182032; --ink:#e7ecf5; --muted:#9aa6bb; --line:#2c3750;
+  --accent:#8b9bff; --red:#ff6b61; --blue:#6ea4ff; --ok:#4cc58f; --chip:#232d45; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1420; --panel:#182032; --ink:#e7ecf5; --muted:#9aa6bb; --line:#2c3750;
+  --accent:#8b9bff; --red:#ff6b61; --blue:#6ea4ff; --ok:#4cc58f; --chip:#232d45; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:16px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(1.7rem,3.2vw,2.4rem);margin:0;letter-spacing:.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:0;max-width:62ch}
+.tabs{display:flex;gap:6px;background:var(--chip);padding:4px;border-radius:10px}
+.tabs button{border:0;background:transparent;color:var(--muted);font:500 .95rem var(--body);padding:8px 14px;border-radius:7px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{display:flex;flex-direction:column;gap:12px;min-width:0}
+.scene{position:relative;border-radius:14px;overflow:hidden;background:#070b16;aspect-ratio:16/9;max-width:100%}
+@media (max-width:600px){.scene{aspect-ratio:4/5}}
+canvas{display:block;width:100%;height:100%}
+.badge{position:absolute;left:12px;top:10px;font:500 .78rem var(--body);color:#c9d3ea;background:rgba(10,16,32,.72);padding:4px 10px;border-radius:6px;letter-spacing:.02em}
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 .95rem var(--body);border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:9px 14px;border-radius:9px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#0f1420}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0f1420}}
+.btn:focus-visible,.tabs button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px 20px}
+.sl label{display:flex;justify-content:space-between;gap:8px;font-size:.92rem;color:var(--muted)}
+.sl output{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.sl input{width:100%;accent-color:var(--accent)}
+.note{font-size:.85rem;color:var(--muted);margin:0}
+aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h2{font-family:var(--display);font-weight:400;font-size:1.25rem;margin:0 0 8px}
+.events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.events li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;color:var(--muted);font-size:.92rem}
+.events li .k{font-family:var(--display);font-size:1.05rem;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--chip)}
+.events li .tm{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.88rem}
+.events li.done{color:var(--ink);background:var(--chip)}
+.events li.done.r .k{background:var(--red);color:#fff}
+.events li.done.b .k{background:var(--blue);color:#fff}
+.bars{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.bar{display:grid;grid-template-columns:52px minmax(0,1fr) 68px;gap:8px;align-items:center;font-size:.88rem}
+.bar .track{height:12px;background:var(--chip);border-radius:6px;overflow:hidden}
+.bar .fill{height:100%;width:0;border-radius:6px;transition:width .25s}
+.bar .v{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.num{background:var(--chip);border-radius:10px;padding:8px 10px}
+.num .l{font-size:.8rem;color:var(--muted)}
+.num .v{font-family:var(--mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.num.wide{grid-column:1/-1}
+details summary{cursor:pointer;font-weight:700;color:var(--accent);list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▸ ";}
+details[open] summary::before{content:"▾ ";}
+.formula{font-family:var(--mono);font-size:1.05rem;background:var(--chip);border-radius:8px;padding:10px;margin:10px 0;overflow-x:auto;white-space:nowrap}
+.cmp{display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.cmp b{font-family:var(--mono);font-weight:600}
+.ground-only[hidden],.rocket-only[hidden]{display:none!important}
+@media (prefers-reduced-motion: reduce){.bar .fill{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>로켓 속 빛 신호 실험실</h1>
+      <p class="sub">가속도 g로 올라가는 로켓에서 위쪽 A가 아래쪽 B에게 빨간 신호와 파란 신호를 보냅니다. 로켓 밖에 정지한 관찰자의 눈으로 봅니다.</p>
+    </div>
+    <div class="tabs" role="group" aria-label="장면 선택">
+      <button id="tabRocket" aria-pressed="true">우주에서 가속하는 로켓</button>
+      <button id="tabGround" aria-pressed="false">등가 원리: 지표면</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="stage">
+      <div class="scene">
+        <canvas id="cv" aria-label="로켓과 빛 신호 애니메이션"></canvas>
+        <div class="badge" id="badge">가로 방향 = 시간 흐름 · 효과를 보기 위해 과장한 값</div>
+      </div>
+      <div class="controls">
+        <div class="btns">
+          <button class="btn primary" id="play">재생</button>
+          <button class="btn" id="reset">처음부터</button>
+          <button class="btn rocket-only" id="step">다음 사건까지</button>
+          <button class="btn" id="g0">g = 0 으로 비교</button>
+        </div>
+        <div class="sliders">
+          <div class="sl"><label for="g">가속도 g <output id="gO"></output></label><input id="g" type="range" min="0" max="6" step="0.5" value="4"></div>
+          <div class="sl"><label for="h">A와 B 사이 거리 h <output id="hO"></output></label><input id="h" type="range" min="4" max="20" step="1" value="12"></div>
+          <div class="sl rocket-only"><label for="dtA">A가 보내는 간격 Δt_A <output id="dtAO"></output></label><input id="dtA" type="range" min="0.03" max="0.4" step="0.01" value="0.15"></div>
+          <div class="sl"><label for="spd">재생 속도 <output id="spdO"></output></label><input id="spd" type="range" min="0.1" max="1" step="0.05" value="0.35"></div>
+        </div>
+        <p class="note">가상 단위: 빛의 속력 c = 10 m/s (실제보다 3천만 배 느리게 설정). 실제 값으로는 차이가 너무 작아 화면에 보이지 않습니다.</p>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card rocket-only">
+        <h2>사건 순서</h2>
+        <ol class="events" id="events"></ol>
+        <div class="bars">
+          <div class="bar"><span>Δt_A</span><div class="track"><div class="fill" id="barA" style="background:var(--red)"></div></div><span class="v" id="barAv">—</span></div>
+          <div class="bar"><span>Δt_B</span><div class="track"><div class="fill" id="barB" style="background:var(--blue)"></div></div><span class="v" id="barBv">—</span></div>
+        </div>
+      </div>
+
+      <div class="card rocket-only">
+        <h2>측정값</h2>
+        <div class="nums">
+          <div class="num"><div class="l">빨간 신호 이동 시간 t</div><div class="v" id="vt">—</div></div>
+          <div class="num"><div class="l">B가 받은 간격 Δt_B</div><div class="v" id="vdtB">—</div></div>
+          <div class="num"><div class="l">j (빨간 신호 동안 로켓 이동)</div><div class="v" id="vj">—</div></div>
+          <div class="num"><div class="l">i (파란 신호 보낼 때까지)</div><div class="v" id="vi">—</div></div>
+          <div class="num"><div class="l">k (파란 신호 받을 때까지)</div><div class="v" id="vk">—</div></div>
+          <div class="num"><div class="l">비율 Δt_A / Δt_B</div><div class="v" id="vratio">—</div></div>
+        </div>
+      </div>
+
+      <div class="card ground-only" hidden>
+        <h2>지표면의 두 시계</h2>
+        <div class="nums">
+          <div class="num"><div class="l">A 시계 (위쪽)</div><div class="v" id="clA">0.00 s</div></div>
+          <div class="num"><div class="l">B 시계 (아래쪽)</div><div class="v" id="clB">0.00 s</div></div>
+          <div class="num wide"><div class="l">A가 1초 흐르는 동안 B는</div><div class="v" id="clRate">—</div></div>
+        </div>
+        <p class="note" style="margin-top:10px">로켓 안의 사람은 "가속 때문에 바닥에 눌리는 것"과 "중력 때문에 바닥에 눌리는 것"을 구별할 수 없습니다. 그래서 지표면에서도 같은 결과가 나옵니다.</p>
+      </div>
+
+      <div class="card">
+        <details id="reveal">
+          <summary>결과 식 보기 (학습지를 다 푼 뒤에)</summary>
+          <div class="formula">Δt_A = Δt_B · √(1 + 2gh/c²)</div>
+          <div class="cmp">
+            <span>시뮬레이션 비율 Δt_A/Δt_B = <b id="rSim">—</b></span>
+            <span>식으로 계산한 √(1 + 2gh/c²) = <b id="rForm">—</b></span>
+          </div>
+          <p class="note" style="margin-top:8px">두 값이 조금 다른 것은 증명 4단계에서 아주 작은 제곱 항을 무시했기 때문입니다. Δt_A를 작게 할수록 두 값이 가까워집니다.</p>
+        </details>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+const C = 10; // 가상 빛의 속력
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const S = {g:4,h:12,dtA:0.15,speed:0.35,time:0,playing:false,mode:'rocket',gTime:0,stopAt:null};
+let D = {};
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function derive(){
+  const {g,h} = S;
+  const t = g>0 ? (-C+Math.sqrt(C*C+2*g*h))/g : h/C;
+  const maxA = Math.min(0.4, +(t*0.8).toFixed(2));
+  $('dtA').max = maxA;
+  if (S.dtA > maxA){ S.dtA = maxA; $('dtA').value = maxA; }
+  const dtA = S.dtA;
+  const H2 = h + 0.5*g*dtA*dtA + C*dtA;
+  const T2 = g>0 ? (-C+Math.sqrt(C*C+2*g*H2))/g : H2/C;
+  D = {t, T2, dtA, dtB:T2-t, Tend:T2*1.12+0.06, ratioForm:Math.sqrt(1+2*g*h/(C*C))};
+  D.events = [
+    {k:'가', time:0, txt:'A가 빨간 신호를 보냄', c:'r'},
+    {k:'나', time:dtA, txt:'A가 파란 신호를 보냄', c:'b'},
+    {k:'다', time:t, txt:'B가 빨간 신호를 받음', c:'r'},
+    {k:'라', time:T2, txt:'B가 파란 신호를 받음', c:'b'}
+  ];
+  $('events').innerHTML = D.events.map((e,i)=>`<li id="ev${i}" class="${e.c}"><span class="k">${e.k}</span><span>${e.txt}</span><span class="tm" id="evt${i}">—</span></li>`).join('');
+}
+
+function fmt(x,n=3){return x.toFixed(n)}
+function updateLabels(){
+  $('gO').textContent = S.g.toFixed(1)+' m/s²';
+  $('hO').textContent = S.h+' m';
+  $('dtAO').textContent = S.dtA.toFixed(2)+' s';
+  $('spdO').textContent = '×'+S.speed.toFixed(2);
+}
+
+function updatePanel(){
+  const tm = S.time, g=S.g;
+  D.events.forEach((e,i)=>{
+    const done = tm >= e.time - 1e-9;
+    $('ev'+i).classList.toggle('done', done);
+    $('evt'+i).textContent = done ? fmt(e.time)+' s' : '—';
+  });
+  const seenB = tm >= D.T2 - 1e-9;
+  const maxBar = Math.max(D.dtA, D.dtB) * 1.15;
+  $('barA').style.width = (tm>=D.dtA ? D.dtA/maxBar*100 : 0)+'%';
+  $('barAv').textContent = tm>=D.dtA ? fmt(D.dtA)+' s' : '—';
+  $('barB').style.width = (seenB ? D.dtB/maxBar*100 : 0)+'%';
+  $('barBv').textContent = seenB ? fmt(D.dtB)+' s' : '—';
+  $('vt').textContent = tm>=D.t ? fmt(D.t)+' s' : '—';
+  $('vdtB').textContent = seenB ? fmt(D.dtB)+' s' : '—';
+  $('vj').textContent = tm>=D.t ? fmt(0.5*g*D.t*D.t,2)+' m' : '—';
+  $('vi').textContent = tm>=D.dtA ? fmt(0.5*g*D.dtA*D.dtA,3)+' m' : '—';
+  $('vk').textContent = seenB ? fmt(0.5*g*D.T2*D.T2,2)+' m' : '—';
+  const ratio = D.dtA/D.dtB;
+  $('vratio').textContent = seenB ? fmt(ratio) : '—';
+  $('rSim').textContent = seenB ? fmt(ratio) : '(끝까지 재생하세요)';
+  $('rForm').textContent = fmt(D.ratioForm);
+}
+
+// stars
+const stars = Array.from({length:140},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.3+0.2,a:Math.random()*0.6+0.2}));
+let W=0,H=0,dpr=1;
+function resize(){
+  const r = cv.getBoundingClientRect();
+  dpr = Math.min(2, window.devicePixelRatio||1);
+  if (Math.round(r.width*dpr)!==cv.width || Math.round(r.height*dpr)!==cv.height){
+    cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
+  }
+  W = r.width; H = r.height; ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+const COL = {red:'#ff5a4f', blue:'#5b9bff', hull:'#cfd6e4', hullDark:'#7f8aa0', window:'#2b3550', text:'#dbe3f3', muted:'#8d99b3', base:'rgba(200,210,235,.35)', j:'#ffd166', i:'#7ee0b5', k:'#f4a3ff'};
+
+function background(){
+  const gr = ctx.createLinearGradient(0,0,0,H);
+  gr.addColorStop(0,'#0a1124'); gr.addColorStop(1,'#04060d');
+  ctx.fillStyle = gr; ctx.fillRect(0,0,W,H);
+  for (const s of stars){ ctx.fillStyle = `rgba(255,255,255,${s.a})`; ctx.beginPath(); ctx.arc(s.x*W, s.y*H, s.r, 0, 7); ctx.fill(); }
+}
+
+function text(t,x,y,col,size=13,align='left',weight='500'){
+  ctx.fillStyle = col; ctx.font = `${weight} ${size}px "IBM Plex Sans KR", system-ui, sans-serif`;
+  ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t,x,y);
+}
+
+function pulse(x,y,col,alpha){
+  ctx.save(); ctx.globalAlpha = alpha; ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(x-3.5, y-11, 7, 22, 3.5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x-7,y+8); ctx.lineTo(x+7,y+8); ctx.lineTo(x,y+16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function rocket(xc, Ytop, Ybot, YA, YB, alpha, flame, w){
+  ctx.save(); ctx.globalAlpha = alpha;
+  const nose = w*1.1;
+  // flame
+  if (flame){
+    const fl = 18 + Math.random()*10;
+    const gr = ctx.createLinearGradient(0,Ybot,0,Ybot+fl);
+    gr.addColorStop(0,'rgba(255,220,120,.95)'); gr.addColorStop(1,'rgba(255,90,40,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(xc-w*0.3,Ybot); ctx.lineTo(xc+w*0.3,Ybot); ctx.lineTo(xc,Ybot+fl); ctx.closePath(); ctx.fill();
+  }
+  // fins
+  ctx.fillStyle = COL.hullDark;
+  ctx.beginPath(); ctx.moveTo(xc-w/2,Ybot-22); ctx.lineTo(xc-w/2-9,Ybot); ctx.lineTo(xc-w/2,Ybot); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(xc+w/2,Ybot-22); ctx.lineTo(xc+w/2+9,Ybot); ctx.lineTo(xc+w/2,Ybot); ctx.closePath(); ctx.fill();
+  // body
+  ctx.fillStyle = COL.hull; ctx.beginPath(); ctx.roundRect(xc-w/2, Ytop, w, Ybot-Ytop, 4); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(xc-w/2,Ytop+2); ctx.quadraticCurveTo(xc-w/2,Ytop-nose*0.6,xc,Ytop-nose); ctx.quadraticCurveTo(xc+w/2,Ytop-nose*0.6,xc+w/2,Ytop+2); ctx.closePath(); ctx.fill();
+  // interior shaft
+  ctx.fillStyle = COL.window; ctx.fillRect(xc-w/2+5, YA-14, w-10, YB-YA+18);
+  // floors
+  ctx.fillStyle = COL.hullDark; ctx.fillRect(xc-w/2+3, YB+4, w-6, 3); ctx.fillRect(xc-w/2+3, YA+4, w-6, 3);
+  // observers
+  for (const [Y,l] of [[YA,'A'],[YB,'B']]){
+    ctx.fillStyle = '#f1f4fa'; ctx.beginPath(); ctx.arc(xc-w/2+11, Y-4, 5, 0, 7); ctx.fill();
+    text(l, xc+w/2-10, Y-4, '#f1f4fa', 12, 'center', '700');
+  }
+  ctx.restore();
+}
+
+function bracket(x,y1,y2,label,col){
+  if (Math.abs(y2-y1) < 1) return;
+  ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x-4,y1); ctx.lineTo(x,y1); ctx.lineTo(x,y2); ctx.lineTo(x-4,y2); ctx.stroke(); ctx.restore();
+  text(label, x+6, (y1+y2)/2, col, 15, 'left', '700');
+}
+
+function drawRocketScene(){
+  const {g,h} = S; const {t,T2,dtA,Tend} = D;
+  const narrow = W < 520;
+  const w = narrow ? 26 : 34;
+  const L = narrow ? 48 : 92, R = narrow ? 30 : 46, top = 46, bottom = narrow ? 70 : 64;
+  const ymin = -1.6, ymax = h + 1.8 + 0.5*g*T2*T2 + 0.6;
+  const s = (H - top - bottom) / (ymax - ymin);
+  const Y = y => top + (ymax - y)*s;
+  const X = tau => L + (tau/Tend)*(W - L - R);
+  const tm = S.time;
+
+  // baselines
+  ctx.save(); ctx.setLineDash([5,6]); ctx.strokeStyle = COL.base; ctx.lineWidth = 1;
+  for (const y of [0,h]){ ctx.beginPath(); ctx.moveTo(8, Y(y)); ctx.lineTo(W-8, Y(y)); ctx.stroke(); }
+  ctx.restore();
+  text(narrow?'처음 A':'처음 A 높이', 8, Y(h)-10, COL.muted, 11);
+  text(narrow?'처음 B':'처음 B 높이', 8, Y(0)-10, COL.muted, 11);
+
+  const yB = tau => 0.5*g*tau*tau;
+  function state(tau, alpha, flame){
+    const b = yB(tau);
+    rocket(X(tau), Y(b+h+1.2), Y(b-0.9), Y(b+h), Y(b), alpha, flame, w);
+    if (tau >= 0 && tau <= t+1e-9) pulse(X(tau), Y(h - C*tau)-2, COL.red, alpha);
+    if (tau >= dtA-1e-9 && tau <= T2+1e-9) pulse(X(tau), Y(h + 0.5*g*dtA*dtA - C*(tau-dtA))-2, COL.blue, alpha);
+  }
+  // ghosts
+  D.events.forEach(e => { if (tm >= e.time + 1e-6) state(e.time, 0.38, false); });
+  // brackets
+  const bx = tau => X(tau) + w/2 + 12;
+  if (tm >= dtA && g>0) bracket(bx(dtA), Y(h), Y(h+yB(dtA)), 'i', COL.i);
+  if (tm >= t && g>0) bracket(bx(t), Y(0), Y(yB(t)), 'j', COL.j);
+  if (tm >= T2 && g>0) bracket(bx(T2), Y(0), Y(yB(T2)), 'k', COL.k);
+  // current
+  state(Math.min(tm, Tend), 1, S.g>0);
+  // g arrow above current rocket
+  const xc = X(Math.min(tm,Tend)), ytop = Y(yB(Math.min(tm,Tend))+h+1.2) - w*1.1 - 6;
+  if (S.g>0){
+    ctx.strokeStyle = '#c48bff'; ctx.fillStyle = '#c48bff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xc, ytop); ctx.lineTo(xc, ytop-22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xc-5,ytop-18); ctx.lineTo(xc+5,ytop-18); ctx.lineTo(xc,ytop-27); ctx.closePath(); ctx.fill();
+    text('g', xc+9, ytop-20, '#c48bff', 14, 'left', '700');
+  }
+
+  // time axis
+  const ya = H - bottom + 22;
+  ctx.strokeStyle = COL.muted; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(L-10, ya); ctx.lineTo(W-R+10, ya); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W-R+10,ya); ctx.lineTo(W-R+3,ya-4); ctx.lineTo(W-R+3,ya+4); ctx.closePath(); ctx.fillStyle=COL.muted; ctx.fill();
+  text('시간', W-R+4, ya-12, COL.muted, 11, 'center');
+  ctx.strokeStyle = 'rgba(255,255,255,.75)';
+  D.events.forEach(e => { if (tm >= e.time){ ctx.beginPath(); ctx.moveTo(X(e.time), ya-5); ctx.lineTo(X(e.time), ya+5); ctx.stroke(); text(e.k, X(e.time), ya-14, COL.text, 12, 'center', '700'); } });
+  function span(a,b,row,label,col){
+    const y = ya + 14 + row*16;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(X(a),y-4); ctx.lineTo(X(a),y+4); ctx.moveTo(X(a),y); ctx.lineTo(X(b),y); ctx.moveTo(X(b),y-4); ctx.lineTo(X(b),y+4); ctx.stroke();
+    ctx.fillStyle = '#070b16';
+    text(label, (X(a)+X(b))/2, y-8, col, 12, 'center', '700');
+  }
+  if (tm >= dtA) span(0, dtA, 0, 'Δt_A', COL.red);
+  if (tm >= T2) span(t, T2, 0, 'Δt_B', COL.blue);
+  if (tm >= t) span(0, t, 1.6, 't', COL.text);
+}
+
+// ground (equivalence) scene
+let gPulses = [], lastEmitA = -1;
+function drawGroundScene(dt){
+  const {h} = S; const ratio = D.ratioForm;
+  const narrow = W < 520;
+  const w = narrow ? 30 : 40, top = 60, bottom = 70;
+  const ymin = -1.6, ymax = h + 2.6;
+  const s = (H - top - bottom) / (ymax - ymin);
+  const Y = y => top + (ymax - y)*s;
+  const xc = W * (narrow ? 0.3 : 0.32);
+  // ground
+  const gy = Y(-1.4)+18;
+  const gr = ctx.createLinearGradient(0,gy,0,H); gr.addColorStop(0,'#3a5a3c'); gr.addColorStop(1,'#1d2e1f');
+  ctx.fillStyle = gr; ctx.fillRect(0, gy, W, H-gy);
+  text('지표면 (중력 가속도 g)', 12, gy+18, '#e2f0df', 13, 'left', '700');
+  // gravity arrow
+  ctx.strokeStyle = '#c48bff'; ctx.fillStyle = '#c48bff'; ctx.lineWidth = 2;
+  const ax = xc + w + (narrow?28:44);
+  ctx.beginPath(); ctx.moveTo(ax, Y(h*0.7)); ctx.lineTo(ax, Y(h*0.3)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax-5,Y(h*0.3)-6); ctx.lineTo(ax+5,Y(h*0.3)-6); ctx.lineTo(ax,Y(h*0.3)+3); ctx.closePath(); ctx.fill();
+  text('g', ax+8, Y(h*0.5), '#c48bff', 15, 'left', '700');
+  rocket(xc, Y(h+1.2), Y(-0.9), Y(h), Y(0), 1, false, w);
+  // pulses
+  if (S.playing && S.g>0){
+    const period = 0.8;
+    const k = Math.floor(S.gTime / period);
+    if (k !== lastEmitA){ lastEmitA = k; gPulses.push({t0:S.gTime, col: k%2 ? COL.blue : COL.red}); }
+  }
+  gPulses = gPulses.filter(p => h - C*(S.gTime - p.t0) > 0);
+  for (const p of gPulses) pulse(xc, Y(h - C*(S.gTime-p.t0))-2, p.col, 1);
+  // clocks
+  const tA = S.gTime, tB = S.g>0 ? S.gTime/ratio : S.gTime;
+  const cx = narrow ? W*0.72 : W*0.68, r = narrow ? 30 : 40;
+  clock(cx, Y(h), r, tA, 'A의 시계 (위)');
+  clock(cx, Y(0)-6, r, tB, 'B의 시계 (아래)');
+  if (S.g>0) text(narrow?'B 시계가 더 느림':'아래쪽 B의 시계가 더 느리게 간다', cx, top-26, '#ffe08a', narrow?13:15, 'center', '700');
+  else text('g = 0 이면 두 시계가 같이 간다', cx, top-26, '#ffe08a', 15, 'center', '700');
+  $('clA').textContent = tA.toFixed(2)+' s';
+  $('clB').textContent = tB.toFixed(2)+' s';
+  $('clRate').textContent = (S.g>0 ? (1/ratio) : 1).toFixed(3)+' 초 흐름 (과장)';
+}
+function clock(x,y,r,tt,label){
+  ctx.fillStyle = '#eef2fa'; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  ctx.strokeStyle = '#2b3550'; ctx.lineWidth = 2; ctx.stroke();
+  for (let i=0;i<12;i++){ const a=i/12*Math.PI*2; ctx.beginPath(); ctx.moveTo(x+Math.sin(a)*r*0.82,y-Math.cos(a)*r*0.82); ctx.lineTo(x+Math.sin(a)*r*0.95,y-Math.cos(a)*r*0.95); ctx.stroke(); }
+  const a = (tt/4)*Math.PI*2;
+  ctx.strokeStyle = '#d8433a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.sin(a)*r*0.78, y-Math.cos(a)*r*0.78); ctx.stroke();
+  ctx.fillStyle = '#2b3550'; ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill();
+  text(label, x, y+r+14, COL.text, 12, 'center', '700');
+}
+
+// loop
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05,(now-last)/1000); last = now;
+  if (S.playing){
+    if (S.mode==='rocket'){
+      S.time += dt*S.speed;
+      if (S.stopAt!==null && S.time >= S.stopAt){ S.time = S.stopAt; S.stopAt = null; setPlaying(false); }
+      if (S.time >= D.Tend){ S.time = D.Tend; setPlaying(false); }
+      updatePanel();
+    } else { S.gTime += dt*S.speed*2; }
+  }
+  resize(); background();
+  if (S.mode==='rocket') drawRocketScene(); else drawGroundScene(dt);
+  requestAnimationFrame(frame);
+}
+
+function setPlaying(p){ S.playing = p; $('play').textContent = p ? '일시정지' : '재생'; }
+$('play').onclick = () => {
+  if (S.mode==='rocket' && S.time >= D.Tend - 1e-6) S.time = 0;
+  S.stopAt = null; setPlaying(!S.playing);
+};
+$('reset').onclick = () => { S.time = 0; S.gTime = 0; gPulses = []; lastEmitA = -1; S.stopAt = null; setPlaying(false); updatePanel(); };
+$('step').onclick = () => {
+  if (S.time >= D.T2 - 1e-6) S.time = 0;
+  const next = D.events.find(e => e.time > S.time + 1e-6);
+  S.stopAt = next ? next.time : D.Tend; setPlaying(true);
+};
+$('g0').onclick = () => {
+  const zero = S.g === 0;
+  S.g = zero ? 4 : 0; $('g').value = S.g;
+  $('g0').textContent = zero ? 'g = 0 으로 비교' : 'g = 4 로 되돌리기';
+  changed();
+};
+function changed(){ derive(); updateLabels(); S.time = Math.min(S.time, D.Tend); updatePanel(); }
+for (const id of ['g','h','dtA','spd']){
+  $(id).addEventListener('input', e => {
+    const v = +e.target.value;
+    if (id==='spd') S.speed = v; else S[id] = v;
+    if (id==='g') $('g0').textContent = S.g===0 ? 'g = 4 로 되돌리기' : 'g = 0 으로 비교';
+    if (id!=='spd'){ changed(); } else updateLabels();
+  });
+}
+function setMode(m){
+  S.mode = m;
+  $('tabRocket').setAttribute('aria-pressed', m==='rocket');
+  $('tabGround').setAttribute('aria-pressed', m==='ground');
+  document.querySelectorAll('.rocket-only').forEach(el => el.hidden = m!=='rocket');
+  document.querySelectorAll('.ground-only').forEach(el => el.hidden = m!=='ground');
+  $('badge').textContent = m==='rocket' ? '가로 방향 = 시간 흐름 · 효과를 보기 위해 과장한 값' : '지표면에 정지한 로켓 · 효과를 보기 위해 과장한 값';
+  if (m==='ground'){ S.gTime = 0; gPulses=[]; lastEmitA=-1; setPlaying(!reduced); } else setPlaying(false);
+}
+$('tabRocket').onclick = () => setMode('rocket');
+$('tabGround').onclick = () => setMode('ground');
+
+derive(); updateLabels();
+S.time = D.Tend; // 처음 화면: 네 사건이 모두 표시된 완성 장면
+updatePanel();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
